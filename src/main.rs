@@ -37,7 +37,9 @@ impl Config {
         let mut html = PathBuf::from(name);
         html.set_extension("html");
 
-        let file = File::create(html)?;
+        let out_file = self.out_directory.join(html);
+
+        let file = File::create(out_file)?;
 
         self.handlebars.render_to_write(template, &data, file)?;
 
