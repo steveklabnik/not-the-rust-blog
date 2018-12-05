@@ -1,5 +1,4 @@
 use std::{
-    collections::BTreeMap,
     error::Error,
     fs::{self, File},
     path::PathBuf,
@@ -8,6 +7,7 @@ use std::{
 use handlebars::Handlebars;
 
 use serde_derive::{Deserialize, Serialize};
+use serde_json::json;
 
 struct Blog {
     handlebars: Handlebars,
@@ -15,7 +15,7 @@ struct Blog {
     out_directory: PathBuf,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 struct Post {
     filename: String,
     title: String,
@@ -24,6 +24,7 @@ struct Post {
     month: String,
     day: String,
     contents: String,
+    url: String,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
@@ -70,10 +71,6 @@ impl Blog {
             let day = split.next().unwrap().to_string();
             let filename = split.next().unwrap().to_string();
 
-            // now we need to get the data from the post itself
-            let author = String::from("steve");
-            let title = String::from(&*filename);
-
             let contents = fs::read_to_string(path)?;
 
             // yaml headers.... we know the first four bytes of each file are "---\n"
@@ -83,8 +80,15 @@ impl Blog {
 
             let YamlHeader { author, title } = serde_yaml::from_str(yaml)?;
 
-            // finally, the contents. we add + to get rid of the final "---\n\n"
+            // next, the contents. we add + to get rid of the final "---\n\n"
             let contents = contents[end_of_yaml + 5..].to_string();
+
+            // finally, the url.
+            let mut url = PathBuf::from(&*filename);
+            url.set_extension("html");
+
+            // this is fine
+            let url = format!("{}/{}/{}/{}", year, month, day, url.to_str().unwrap());
 
             let post = Post {
                 filename,
@@ -94,6 +98,7 @@ impl Blog {
                 month,
                 day,
                 contents,
+                url,
             };
 
             posts.push(post);
@@ -113,16 +118,25 @@ impl Blog {
     }
 
     fn render_index(&self) -> Result<(), Box<Error>> {
-        let mut data = BTreeMap::new();
+        /*
         data.insert("title".to_string(), "The Rust Programming Language Blog".to_string());
         data.insert("parent".to_string(), "layout".to_string());
+
+        data.insert("post_titles".to_string(), self.posts)
+        */
+
+        let data = json!({
+            "title": "The Rust Programming Language Blog",
+            "parent": "layout",
+            "posts": self.posts,
+        });
 
         self.render_template("index.html", "index", data)?;
         
         Ok(())
     }
 
-    fn render_template(&self, name: &str, template: &str, data: BTreeMap<String, String>) -> Result<(), Box<Error>> {
+    fn render_template(&self, name: &str, template: &str, data: serde_json::Value) -> Result<(), Box<Error>> {
         let out_file = self.out_directory.join(name);
 
         let file = File::create(out_file)?;
