@@ -4,6 +4,8 @@ use std::{
     path::PathBuf,
 };
 
+use comrak::ComrakOptions;
+
 use handlebars::Handlebars;
 
 use serde_derive::{Deserialize, Serialize};
@@ -81,7 +83,7 @@ impl Blog {
             let YamlHeader { author, title } = serde_yaml::from_str(yaml)?;
 
             // next, the contents. we add + to get rid of the final "---\n\n"
-            let contents = contents[end_of_yaml + 5..].to_string();
+            let contents = comrak::markdown_to_html(&contents[end_of_yaml + 5..], &ComrakOptions::default());
 
             // finally, the url.
             let mut url = PathBuf::from(&*filename);
@@ -106,6 +108,9 @@ impl Blog {
 
         // finally, sort the posts. oldest first.
 
+        // we're gonna cheat:
+        posts.reverse();
+
         Ok(posts)
     }
 
@@ -114,17 +119,12 @@ impl Blog {
 
         self.render_index()?;
 
+        self.render_posts()?;
+
         Ok(())
     }
 
     fn render_index(&self) -> Result<(), Box<Error>> {
-        /*
-        data.insert("title".to_string(), "The Rust Programming Language Blog".to_string());
-        data.insert("parent".to_string(), "layout".to_string());
-
-        data.insert("post_titles".to_string(), self.posts)
-        */
-
         let data = json!({
             "title": "The Rust Programming Language Blog",
             "parent": "layout",
@@ -133,6 +133,33 @@ impl Blog {
 
         self.render_template("index.html", "index", data)?;
         
+        Ok(())
+    }
+
+    fn render_posts(&self) -> Result<(), Box<Error>> {
+        for post in &self.posts {
+            // first, we create the path
+            //let path = PathBuf::from(&self.out_directory);
+
+            let path = PathBuf::from(&post.year);
+            let path = path.join(&post.month);
+            let path = path.join(&post.day);
+
+            fs::create_dir_all(self.out_directory.join(&path))?;
+
+            // then, we render the page in that path
+            let mut filename = PathBuf::from(&post.filename);
+            filename.set_extension("html");
+
+            let data = json!({
+                "title": "The Rust Programming Language Blog",
+                "parent": "layout",
+                "post": post,
+            });
+
+            self.render_template(path.join(filename).to_str().unwrap(), "post", data)?;
+        }
+
         Ok(())
     }
 
