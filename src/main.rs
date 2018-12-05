@@ -115,11 +115,14 @@ impl Blog {
     }
 
     fn render(&self) -> Result<(), Box<Error>> {
+        // make sure our output directory exists
         fs::create_dir_all(&self.out_directory)?;
 
         self.render_index()?;
 
         self.render_posts()?;
+        
+        self.copy_static_files()?;
 
         Ok(())
     }
@@ -159,6 +162,20 @@ impl Blog {
 
             self.render_template(path.join(filename).to_str().unwrap(), "post", data)?;
         }
+
+        Ok(())
+    }
+
+    fn copy_static_files(&self) -> Result<(), Box<Error>> {
+        use fs_extra::dir::{self, CopyOptions};
+        
+        let mut options = CopyOptions::new();
+        options.overwrite = true;
+        options.copy_inside = true;
+
+        dir::copy("static/fonts", &self.out_directory, &options)?;
+        dir::copy("static/images", &self.out_directory, &options)?;
+        dir::copy("static/styles", &self.out_directory, &options)?;
 
         Ok(())
     }
